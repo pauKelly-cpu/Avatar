@@ -1,14 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiPost } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
 
 export default function SignupPage() {
+  const sp = useSearchParams();
+  const returnUrl = sp.get("returnUrl") || "";
+  const state = sp.get("state") || "";
+  const extId = sp.get("extId") || "";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const next = `/avatar?returnUrl=${encodeURIComponent(returnUrl)}&state=${encodeURIComponent(state)}&extId=${encodeURIComponent(extId)}`;
 
   return (
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 420 }}>
@@ -43,7 +51,7 @@ export default function SignupPage() {
               password,
             });
             saveToken(res.token);
-            window.location.href = "/avatar";
+            window.location.href = next;
           } catch (e: any) {
             setStatus(e.message || "Signup failed");
           } finally {
@@ -57,7 +65,12 @@ export default function SignupPage() {
       {status && <p style={{ color: "crimson", marginTop: 12 }}>{status}</p>}
 
       <p style={{ marginTop: 12 }}>
-        Already have an account? <a href="/login">Log in</a>
+        Already have an account?{" "}
+        <a
+          href={`/login?returnUrl=${encodeURIComponent(returnUrl)}&state=${encodeURIComponent(state)}&extId=${encodeURIComponent(extId)}`}
+        >
+          Log in
+        </a>
       </p>
     </main>
   );

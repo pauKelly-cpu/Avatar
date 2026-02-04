@@ -1,14 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { apiPost } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
 
 export default function LoginPage() {
+  const sp = useSearchParams();
+  const returnUrl = sp.get("returnUrl") || "";
+  const state = sp.get("state") || "";
+  const extId = sp.get("extId") || "";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const next =
+    `/avatar?returnUrl=${encodeURIComponent(returnUrl)}` +
+    `&state=${encodeURIComponent(state)}` +
+    `&extId=${encodeURIComponent(extId)}`;
+
+  const signupLink =
+    `/signup?returnUrl=${encodeURIComponent(returnUrl)}` +
+    `&state=${encodeURIComponent(state)}` +
+    `&extId=${encodeURIComponent(extId)}`;
 
   return (
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 420 }}>
@@ -43,9 +59,9 @@ export default function LoginPage() {
               password,
             });
             saveToken(res.token);
-            window.location.href = "/avatar";
+            window.location.href = next;
           } catch (e: any) {
-            setStatus(e.message || "Login failed");
+            setStatus(e?.message || "Login failed");
           } finally {
             setLoading(false);
           }
@@ -57,7 +73,7 @@ export default function LoginPage() {
       {status && <p style={{ color: "crimson", marginTop: 12 }}>{status}</p>}
 
       <p style={{ marginTop: 12 }}>
-        No account? <a href="/signup">Sign up</a>
+        No account? <a href={signupLink}>Sign up</a>
       </p>
     </main>
   );

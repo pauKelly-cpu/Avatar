@@ -16,18 +16,18 @@ type Avatar = {
 
 export default function AvatarPage() {
   const sp = useSearchParams();
-  const returnUrl = sp.get("returnUrl") || "https://www.zalando.de/";
-  const state = sp.get("state") || "no-state-yet";
+  const returnUrlRaw = sp.get("returnUrl") || "https://www.zalando.de/";
+  const extId = sp.get("extId") || ""; // IMPORTANT for redirect into extension
 
   const safeReturnUrl = useMemo(() => {
     try {
-      const u = new URL(returnUrl);
-      if (u.hostname.endsWith("zalando.de")) return returnUrl;
+      const u = new URL(returnUrlRaw);
+      if (u.hostname.endsWith("zalando.de")) return returnUrlRaw;
       return "https://www.zalando.de/";
     } catch {
       return "https://www.zalando.de/";
     }
-  }, [returnUrl]);
+  }, [returnUrlRaw]);
 
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function AvatarPage() {
   useEffect(() => {
     const t = getToken();
     if (!t) {
-      window.location.href = "/login";
+      window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}&extId=${encodeURIComponent(extId)}`;
       return;
     }
     setToken(t);
@@ -62,7 +62,7 @@ export default function AvatarPage() {
         setStatus(e.message || "Failed to load avatar");
       }
     })();
-  }, []);
+  }, [safeReturnUrl, extId]);
 
   return (
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 620 }}>
@@ -70,22 +70,6 @@ export default function AvatarPage() {
       <p style={{ color: "#444" }}>
         For now we save your measurements (later we add real 3D).
       </p>
-
-      <div
-        style={{
-          padding: 12,
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          marginTop: 12,
-        }}
-      >
-        <div>
-          <b>returnUrl:</b> {safeReturnUrl}
-        </div>
-        <div>
-          <b>state:</b> {state}
-        </div>
-      </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
         <label>
@@ -184,8 +168,9 @@ export default function AvatarPage() {
           onClick={async () => {
             if (!token) return;
             setStatus(null);
+
             try {
-              // Save first
+              // 1) Save avatar measurements
               await apiPost(
                 "/avatar",
                 {
@@ -198,18 +183,26 @@ export default function AvatarPage() {
                 token,
               );
 
-              // Create one-time code (we’ll use it in Step 5 for extension callback)
+              // 2) Create one-time code
               const res = await apiPost<{ code: string; expiresAt: number }>(
                 "/auth/create-one-time-code",
                 {},
                 token,
               );
 
-              // For now: show the code on screen (Step 5 will send it to extension)
-              alert(`One-time code (next step for extension): ${res.code}`);
+              // 3) Redirect into extension callback page (auto-login)
+              if (!extId) {
+                // fallback if extId missing
+                window.location.href = safeReturnUrl;
+                return;
+              }
 
-              // Return to where the user came from
-              window.location.href = safeReturnUrl;
+              const callbackUrl =
+                `chrome-extension://${extId}/callback.html` +
+                `?code=${encodeURIComponent(res.code)}` +
+                `&returnUrl=${encodeURIComponent(safeReturnUrl)}`;
+
+              window.location.href = callbackUrl;
             } catch (e: any) {
               setStatus(e.message || "Finish failed");
             }
@@ -222,7 +215,7 @@ export default function AvatarPage() {
           style={{ padding: 10 }}
           onClick={() => {
             clearToken();
-            window.location.href = "/login";
+            window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}&extId=${encodeURIComponent(extId)}`;
           }}
         >
           Log out

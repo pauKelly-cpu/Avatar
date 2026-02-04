@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Fit Avatar (Zalando)",
+  "version": "0.1.0",
+  "description": "Create your avatar on the website and use it on Zalando.",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://www.zalando.de/*"],
+  "action": {
+    "default_title": "Fit Avatar",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
