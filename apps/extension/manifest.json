@@ -7,7 +7,7 @@
   "host_permissions": ["https://www.zalando.de/*"],
   "action": {
     "default_title": "Fit Avatar",
-    "default_popup": "popup.html"
+    "default_popup": "popup2.html"
   },
   "background": {
     "service_worker": "background.js"
