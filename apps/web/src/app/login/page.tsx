@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { apiPost } from "@/lib/api";
+import { saveToken } from "@/lib/auth";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   return (
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 420 }}>
@@ -29,10 +33,28 @@ export default function LoginPage() {
 
       <button
         style={{ padding: 10, width: "100%" }}
-        onClick={() => alert("Next step: connect API")}
+        disabled={loading}
+        onClick={async () => {
+          setStatus(null);
+          setLoading(true);
+          try {
+            const res = await apiPost<{ token: string }>("/auth/login", {
+              email,
+              password,
+            });
+            saveToken(res.token);
+            window.location.href = "/avatar";
+          } catch (e: any) {
+            setStatus(e.message || "Login failed");
+          } finally {
+            setLoading(false);
+          }
+        }}
       >
-        Log in
+        {loading ? "Logging in..." : "Log in"}
       </button>
+
+      {status && <p style={{ color: "crimson", marginTop: 12 }}>{status}</p>}
 
       <p style={{ marginTop: 12 }}>
         No account? <a href="/signup">Sign up</a>
