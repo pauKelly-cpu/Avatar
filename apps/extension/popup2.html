@@ -7,7 +7,7 @@
     <style>
       body {
         font-family: system-ui, Arial;
-        width: 320px;
+        width: 340px;
         margin: 12px;
       }
       button {
@@ -34,6 +34,12 @@
       .err {
         color: crimson;
       }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 10px;
+        margin-top: 10px;
+      }
       .row {
         display: flex;
         gap: 8px;
@@ -44,23 +50,60 @@
       hr {
         margin: 12px 0;
       }
+      .kv {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 10px;
+        align-items: center;
+      }
+      .k {
+        color: #444;
+      }
+      .v {
+        font-weight: 600;
+      }
+      .muted {
+        color: #777;
+      }
     </style>
   </head>
   <body>
     <h3 style="margin: 0 0 6px">Fit Avatar</h3>
-    <div id="status" class="small">Not logged in.</div>
+    <div id="status" class="small">Loading…</div>
 
-    <div class="row">
-      <button id="createAvatarBtn">Create avatar</button>
-      <button id="logoutBtn">Log out</button>
+    <div id="avatarCard" class="card" style="display: none">
+      <div style="font-weight: 700; margin-bottom: 8px">Your measurements</div>
+      <div class="kv">
+        <div class="k">Height</div>
+        <div class="v" id="m_height">—</div>
+        <div class="k">Chest</div>
+        <div class="v" id="m_chest">—</div>
+        <div class="k">Waist</div>
+        <div class="v" id="m_waist">—</div>
+        <div class="k">Hips</div>
+        <div class="v" id="m_hips">—</div>
+        <div class="k">Fit pref</div>
+        <div class="v" id="m_fit">—</div>
+      </div>
+      <div class="small muted" style="margin-top: 8px">
+        Chest/waist/hips are circumference (tape around).
+      </div>
+
+      <button id="openEditorBtn">Open avatar editor</button>
+
+      <div class="row">
+        <button id="logoutBtn">Log out</button>
+        <button id="refreshBtn">Refresh</button>
+      </div>
     </div>
 
-    <hr />
-
-    <div class="small"><b>Manual login (MVP)</b></div>
-    <input id="email" type="email" placeholder="Email" />
-    <input id="password" type="password" placeholder="Password" />
-    <button id="loginBtn">Log in</button>
+    <div id="loginCard" class="card" style="display: none">
+      <div class="small"><b>Manual login (MVP)</b></div>
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <button id="loginBtn">Log in</button>
+      <button id="createAvatarBtn">Create avatar</button>
+    </div>
 
     <script src="popup.js"></script>
   </body>
