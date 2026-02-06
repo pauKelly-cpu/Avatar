@@ -17,11 +17,11 @@ type Avatar = {
 export default function AvatarPage() {
   const sp = useSearchParams();
   const returnUrlRaw = sp.get("returnUrl") || "https://www.zalando.de/";
-  const extId = sp.get("extId") || ""; // IMPORTANT for redirect into extension
 
   const safeReturnUrl = useMemo(() => {
     try {
       const u = new URL(returnUrlRaw);
+      // For MVP, only allow returning to zalando.de
       if (u.hostname.endsWith("zalando.de")) return returnUrlRaw;
       return "https://www.zalando.de/";
     } catch {
@@ -31,6 +31,7 @@ export default function AvatarPage() {
 
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [loadingFinish, setLoadingFinish] = useState(false);
 
   const [heightCm, setHeightCm] = useState<number | "">("");
   const [chestCm, setChestCm] = useState<number | "">("");
@@ -43,7 +44,7 @@ export default function AvatarPage() {
   useEffect(() => {
     const t = getToken();
     if (!t) {
-      window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}&extId=${encodeURIComponent(extId)}`;
+      window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`;
       return;
     }
     setToken(t);
@@ -59,16 +60,33 @@ export default function AvatarPage() {
           setFitPref(res.avatar.fit_pref ?? "regular");
         }
       } catch (e: any) {
-        setStatus(e.message || "Failed to load avatar");
+        setStatus(e?.message || "Failed to load avatar");
       }
     })();
-  }, [safeReturnUrl, extId]);
+  }, [safeReturnUrl]);
+
+  async function saveAvatar() {
+    if (!token) return;
+
+    await apiPost(
+      "/avatar",
+      {
+        heightCm: heightCm === "" ? null : heightCm,
+        chestCm: chestCm === "" ? null : chestCm,
+        waistCm: waistCm === "" ? null : waistCm,
+        hipsCm: hipsCm === "" ? null : hipsCm,
+        fitPref,
+      },
+      token,
+    );
+  }
 
   return (
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 620 }}>
       <h1>Avatar Builder (MVP)</h1>
       <p style={{ color: "#444" }}>
-        For now we save your measurements (later we add real 3D).
+        Measurements are <b>circumference</b> (tape measure around your body):
+        chest, waist, hips.
       </p>
 
       <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
@@ -85,7 +103,7 @@ export default function AvatarPage() {
         </label>
 
         <label>
-          Chest (cm)
+          Chest circumference (cm)
           <input
             style={{ width: "100%", padding: 10, marginTop: 6 }}
             type="number"
@@ -97,7 +115,7 @@ export default function AvatarPage() {
         </label>
 
         <label>
-          Waist (cm)
+          Waist circumference (natural waist) (cm)
           <input
             style={{ width: "100%", padding: 10, marginTop: 6 }}
             type="number"
@@ -109,7 +127,7 @@ export default function AvatarPage() {
         </label>
 
         <label>
-          Hips (cm)
+          Hips circumference (widest point) (cm)
           <input
             style={{ width: "100%", padding: 10, marginTop: 6 }}
             type="number"
@@ -143,20 +161,10 @@ export default function AvatarPage() {
             if (!token) return;
             setStatus(null);
             try {
-              await apiPost(
-                "/avatar",
-                {
-                  heightCm: heightCm === "" ? null : heightCm,
-                  chestCm: chestCm === "" ? null : chestCm,
-                  waistCm: waistCm === "" ? null : waistCm,
-                  hipsCm: hipsCm === "" ? null : hipsCm,
-                  fitPref,
-                },
-                token,
-              );
+              await saveAvatar();
               setStatus("Saved ✓");
             } catch (e: any) {
-              setStatus(e.message || "Save failed");
+              setStatus(e?.message || "Save failed");
             }
           }}
         >
@@ -165,23 +173,15 @@ export default function AvatarPage() {
 
         <button
           style={{ padding: 10 }}
+          disabled={loadingFinish}
           onClick={async () => {
             if (!token) return;
             setStatus(null);
+            setLoadingFinish(true);
 
             try {
-              // 1) Save avatar measurements
-              await apiPost(
-                "/avatar",
-                {
-                  heightCm: heightCm === "" ? null : heightCm,
-                  chestCm: chestCm === "" ? null : chestCm,
-                  waistCm: waistCm === "" ? null : waistCm,
-                  hipsCm: hipsCm === "" ? null : hipsCm,
-                  fitPref,
-                },
-                token,
-              );
+              // 1) Save avatar
+              await saveAvatar();
 
               // 2) Create one-time code
               const res = await apiPost<{ code: string; expiresAt: number }>(
@@ -190,32 +190,47 @@ export default function AvatarPage() {
                 token,
               );
 
-              // 3) Redirect into extension callback page (auto-login)
-              if (!extId) {
-                // fallback if extId missing
+              // 3) Send code to extension (contentScript listens on localhost:3000)
+              window.postMessage(
+                {
+                  type: "FIT_AVATAR_CODE",
+                  code: res.code,
+                  returnUrl: safeReturnUrl,
+                },
+                "*",
+              );
+
+              // 4) Wait briefly for extension response, then return to Zalando anyway
+              const onResult = (event: MessageEvent) => {
+                if (event.source !== window) return;
+                const data: any = event.data;
+                if (!data || data.type !== "FIT_AVATAR_CODE_RESULT") return;
+
+                window.removeEventListener("message", onResult);
                 window.location.href = safeReturnUrl;
-                return;
-              }
+              };
 
-              const callbackUrl =
-                `chrome-extension://${extId}/callback.html` +
-                `?code=${encodeURIComponent(res.code)}` +
-                `&returnUrl=${encodeURIComponent(safeReturnUrl)}`;
+              window.addEventListener("message", onResult);
 
-              window.location.href = callbackUrl;
+              // Failsafe redirect no matter what
+              setTimeout(() => {
+                window.removeEventListener("message", onResult);
+                window.location.href = safeReturnUrl;
+              }, 1500);
             } catch (e: any) {
-              setStatus(e.message || "Finish failed");
+              setStatus(e?.message || "Finish failed");
+              setLoadingFinish(false);
             }
           }}
         >
-          Finish & Return
+          {loadingFinish ? "Finishing..." : "Finish & Return"}
         </button>
 
         <button
           style={{ padding: 10 }}
           onClick={() => {
             clearToken();
-            window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}&extId=${encodeURIComponent(extId)}`;
+            window.location.href = `/login?returnUrl=${encodeURIComponent(safeReturnUrl)}`;
           }}
         >
           Log out

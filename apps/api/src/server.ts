@@ -183,24 +183,34 @@ app.post(
 );
 
 app.post("/auth/exchange-code", async (req, reply) => {
-  const body = z.object({ code: z.string().min(10) }).parse(req.body);
+  try {
+    const parsed = z.object({ code: z.string().min(10) }).safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid code" });
+    }
 
-  const row = await db.get<{ user_id: string; expires_at: number }>(
-    "SELECT user_id, expires_at FROM one_time_codes WHERE code = ?",
-    body.code,
-  );
+    const { code } = parsed.data;
 
-  if (!row) return reply.code(400).send({ error: "Invalid code" });
+    const row = await db.get<{ user_id: string; expires_at: number }>(
+      "SELECT user_id, expires_at FROM one_time_codes WHERE code = ?",
+      code,
+    );
 
-  if (Date.now() > row.expires_at) {
-    await db.run("DELETE FROM one_time_codes WHERE code = ?", body.code);
-    return reply.code(400).send({ error: "Code expired" });
+    if (!row) return reply.code(400).send({ error: "Invalid code" });
+
+    if (Date.now() > row.expires_at) {
+      await db.run("DELETE FROM one_time_codes WHERE code = ?", code);
+      return reply.code(400).send({ error: "Code expired" });
+    }
+
+    await db.run("DELETE FROM one_time_codes WHERE code = ?", code);
+
+    const token = app.jwt.sign({ userId: row.user_id } satisfies JwtPayload);
+    return { token };
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.code(500).send({ error: "Server error" });
   }
-
-  await db.run("DELETE FROM one_time_codes WHERE code = ?", body.code);
-
-  const token = app.jwt.sign({ userId: row.user_id } satisfies JwtPayload);
-  return { token };
 });
 
 async function start() {

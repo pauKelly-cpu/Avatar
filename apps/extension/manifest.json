@@ -4,12 +4,28 @@
   "version": "0.1.0",
   "description": "Create your avatar on the website and use it on Zalando.",
   "permissions": ["storage", "tabs"],
-  "host_permissions": ["https://www.zalando.de/*"],
+  "host_permissions": [
+    "https://www.zalando.de/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:4000/*"
+  ],
   "action": {
     "default_title": "Fit Avatar",
     "default_popup": "popup2.html"
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:3000/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.zalando.de/*"],
+      "js": ["zalandoContentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
